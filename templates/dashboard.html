@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Potential Radar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  :root{
+    --ink:#111; --bg:#fff; --muted:#767676; --faint:#a6a6a6;
+    --hairline:#e6e6e6; --strong:#111;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Helvetica Neue", system-ui, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased; font-weight:400; line-height:1.4;
+  }
+  .wrap{max-width:880px; margin:0 auto; padding:48px 28px 96px;}
+
+  .label{
+    font-size:11px; text-transform:uppercase; letter-spacing:.14em;
+    color:var(--muted); font-weight:500;
+  }
+
+  /* masthead */
+  .masthead h1{
+    font-weight:300; font-size:46px; letter-spacing:-.02em; margin:0;
+  }
+  .masthead .sub{ color:var(--muted); font-size:14px; margin-top:6px; }
+  .rule{ border:0; border-top:1px solid var(--hairline); margin:28px 0; }
+
+  /* status bar */
+  .statusbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:8px;
+  }
+  .status{ display:flex; align-items:center; gap:10px; }
+  .dot{ width:7px; height:7px; border-radius:999px; background:var(--faint); }
+  .dot.live{ background:var(--ink); }
+  .status .txt{ font-size:13px; color:var(--muted); }
+
+  .pill{
+    display:inline-flex; align-items:center; gap:7px;
+    border:1px solid var(--ink); border-radius:999px;
+    padding:9px 18px; font-size:12px; letter-spacing:.04em;
+    background:var(--ink); color:#fff; cursor:pointer;
+    text-transform:uppercase; font-weight:500;
+  }
+  .pill:hover{ opacity:.85; }
+  .pill:disabled{ opacity:.4; cursor:default; }
+
+  /* list */
+  .list{ margin-top:24px; }
+  .row{
+    display:grid;
+    grid-template-columns:34px 1fr auto;
+    gap:18px; align-items:center;
+    padding:22px 0; border-top:1px solid var(--hairline);
+  }
+  .row:last-child{ border-bottom:1px solid var(--hairline); }
+  .idx{ font-size:13px; color:var(--faint); font-weight:300; }
+
+  .name{ font-size:20px; font-weight:300; letter-spacing:-.01em; }
+  .meta{ margin-top:7px; display:flex; gap:8px; flex-wrap:wrap; }
+  .gtag{
+    font-size:11px; color:var(--muted); border:1px solid var(--hairline);
+    border-radius:999px; padding:3px 10px; letter-spacing:.02em;
+  }
+  .stats{ margin-top:9px; font-size:12px; color:var(--muted); }
+  .stats b{ color:var(--ink); font-weight:500; }
+  .mom{ color:var(--ink); }
+  .mom .arrow{ font-size:11px; }
+  .open{
+    display:inline-block; margin-top:9px; font-size:12px;
+    color:var(--ink); text-decoration:none; border-bottom:1px solid var(--ink);
+    padding-bottom:1px;
+  }
+  .open:hover{ color:var(--muted); border-color:var(--muted); }
+
+  .scorewrap{ text-align:right; min-width:92px; }
+  .score{ font-size:40px; font-weight:300; line-height:1; letter-spacing:-.02em; }
+  .scorelbl{ margin-top:6px; }
+
+  .empty{ color:var(--muted); font-size:14px; padding:40px 0; }
+
+  @media (max-width:560px){
+    .masthead h1{ font-size:36px; }
+    .row{ grid-template-columns:24px 1fr auto; gap:12px; }
+    .score{ font-size:32px; }
+    .wrap{ padding:32px 18px 72px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="label">Potential Radar</div>
+    <h1>Potential Radar</h1>
+    <div class="sub">rising-artist radar · Spotify</div>
+  </div>
+
+  <hr class="rule">
+
+  <div class="statusbar">
+    <div class="status">
+      <span class="dot" id="dot"></span>
+      <span class="txt" id="statustxt">Loading…</span>
+    </div>
+    <button class="pill" id="scanbtn" onclick="scan()">Scan now</button>
+  </div>
+
+  <div class="list" id="list">
+    <div class="empty">Loading the radar…</div>
+  </div>
+
+</div>
+
+<script>
+function fmt(n){ return Number(n||0).toLocaleString("en-US"); }
+
+function render(data){
+  var dot = document.getElementById("dot");
+  var statustxt = document.getElementById("statustxt");
+  if(data.demo){
+    dot.classList.remove("live");
+    statustxt.textContent = "Demo · sample data — add a Spotify key to go live";
+  } else {
+    dot.classList.add("live");
+    var when = data.scanned_at ? new Date(data.scanned_at*1000).toLocaleString() : "";
+    statustxt.textContent = "Live · Spotify connected" + (when ? " · scanned " + when : "");
+  }
+
+  var list = document.getElementById("list");
+  var arts = data.artists || [];
+  if(!arts.length){
+    list.innerHTML = '<div class="empty">No artists yet. Hit “Scan now”.</div>';
+    return;
+  }
+
+  var html = "";
+  arts.forEach(function(a, i){
+    var genres = (a.genres || []).slice(0,3).map(function(g){
+      return '<span class="gtag">'+g+'</span>';
+    }).join("");
+
+    var rising = (a.momentum || 0) > 0;
+    var mom = rising
+      ? '<span class="mom"><span class="arrow">▲</span> rising · ' + a.momentum + '</span>'
+      : '<span class="mom"><span class="arrow">–</span> steady</span>';
+
+    var url = a.url && a.url !== "#"
+      ? '<a class="open" href="'+a.url+'" target="_blank" rel="noopener">Open in Spotify ↗</a>'
+      : '<span class="open" style="border:0;color:#a6a6a6;cursor:default">Open in Spotify ↗</span>';
+
+    html += ''
+      + '<div class="row">'
+      +   '<div class="idx">'+String(i+1).padStart(2,"0")+'</div>'
+      +   '<div>'
+      +     '<div class="name">'+a.name+'</div>'
+      +     '<div class="meta">'+genres+'</div>'
+      +     '<div class="stats"><b>'+fmt(a.followers)+'</b> followers · popularity <b>'
+      +        (a.popularity||0)+'</b> · '+mom+'</div>'
+      +     url
+      +   '</div>'
+      +   '<div class="scorewrap">'
+      +     '<div class="score">'+(a.score||0)+'</div>'
+      +     '<div class="label scorelbl">Potential</div>'
+      +   '</div>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+function load(){
+  fetch("/api/artists").then(function(r){return r.json();}).then(render)
+    .catch(function(){
+      document.getElementById("statustxt").textContent = "Could not load.";
+    });
+}
+
+function scan(){
+  var btn = document.getElementById("scanbtn");
+  btn.disabled = true; btn.textContent = "Scanning…";
+  fetch("/api/scan", {method:"POST"}).then(function(r){return r.json();})
+    .then(function(res){
+      if(res.error){ alert(res.error); }
+      load();
+    })
+    .catch(function(){ alert("Scan failed."); })
+    .finally(function(){
+      btn.disabled = false; btn.textContent = "Scan now";
+    });
+}
+
+load();
+</script>
+</body>
+</html>
